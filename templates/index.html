@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>법인등록번호 조회 시스템</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 2rem; background-color: #f4f7f6; color: #333; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #0056b3; text-align: center; }
+        form { display: flex; gap: 0.5rem; margin-bottom: 2rem; }
+        input[type="text"] { flex-grow: 1; padding: 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; }
+        button { padding: 0.75rem 1.5rem; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+        button:hover { background-color: #0056b3; }
+        .results-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        .results-table th, .results-table td { border: 1px solid #ddd; padding: 0.8rem; text-align: left; font-size: 0.9rem; }
+        .results-table th { background-color: #e9ecef; color: #495057; }
+        .results-table tr:nth-child(even) { background-color: #f8f9fa; }
+        .no-results { text-align: center; color: #777; padding: 2rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚖️ 법인등록번호 조회</h1>
+        <form method="POST">
+            <input type="text" name="query" placeholder="법인등록번호를 입력하세요 (예: 110111-1258220)" value="{{ query | default('', true) }}">
+            <button type="submit">검색</button>
+        </form>
+
+        {% if results is not none %}
+            {% if results %}
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>법인명</th>
+                            <th>구분</th>
+                            <th>법인등록번호</th>
+                            <th>주소</th>
+                            <th>관할등기소</th>
+                            <th>등기기록상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in results %}
+                        <tr>
+                            <td>{{ item.conm }}</td>
+                            <td>{{ item.hdbrc_cls_name }}</td>
+                            <td>{{ item.drokno }}</td>
+                            <td>{{ item.juso }}</td>
+                            <td>{{ item.regt_name | safe }}</td>
+                            <td>{{ item.crgbk_stcd_name }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="no-results">검색 결과가 없습니다. 등록번호를 확인 후 다시 시도해주세요.</p>
+            {% endif %}
+        {% endif %}
+    </div>
+</body>
+</html>
