@@ -1,15 +1,19 @@
 import requests
-import argparse
 import sys
 import json
 import certifi
+import re
+from flask import Flask, render_template, request
 
-def search_iros_registration(registration_number: str):
+app = Flask(__name__)
+
+def search_iros(query: str, search_by: str = "number"):
     """
-    대한민국 법원 인터넷등기소(iros.go.kr)에 등기번호로 정보를 요청하고 결과를 반환합니다.
+    대한민국 법원 인터넷등기소(iros.go.kr)에 등기번호 또는 법인명으로 정보를 요청하고 결과를 반환합니다.
 
     Args:
-        registration_number (str): 조회할 법인 등기번호.
+        query (str): 조회할 법인 등기번호 또는 법인명.
+        search_by (str): 'number' (등기번호) 또는 'name' (법인명). 기본값은 'number'.
 
     Returns:
         dict: 요청 성공 시 JSON 응답 데이터.
@@ -30,8 +34,23 @@ def search_iros_registration(registration_number: str):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
     }
 
+    # Payload 초기화
+    regt_no = "0"
+    extn_regt_no = ""
+    swrd = query
+    # PC01: 상호, PC03: 등록번호
+    search_class = "PC03" if search_by == "number" else "PC01"
+
+    # 검색 유형에 따라 payload 재구성
+    if search_by == "number":
+        parts = query.split('-')
+        if len(parts) == 2:
+            regt_no = parts[0]
+            extn_regt_no = parts[1]
+            swrd = "" # 번호 검색 시 swrd는 사용하지 않음
+    
     payload = {
-        "websquare_param": { "move_cls": "A", "issue_rsvre_yn": "N", "regt_no": "0", "extn_regt_no": "", "corp_cls_cd": "0", "crgbk_stcd": "0", "hdbrc_cls": "0", "srch_cls": "PC03", "swrd": registration_number, "master_no": "", "crg_no": "", "bpay_obj_acnt": "", "login_yn": "", "crg_type_sel_yn": "", "enr_no_sel_yn": "", "read_date": "", "read_no": "", "svc_cls": "", "bpay_cls": "", "pageIndex": "", "prev_yn": "", "calg_scrn": "", "eras_yn": "", "eras_conm": "", "eras_rom_conm": "", "re_srch_yn": "", "appl_tcnt": "", "dg_suit_yn": "", "dgcf_issue_cls_cd": "" }
+        "websquare_param": { "move_cls": "A", "issue_rsvre_yn": "N", "regt_no": regt_no, "extn_regt_no": extn_regt_no, "corp_cls_cd": "0", "crgbk_stcd": "0", "hdbrc_cls": "0", "srch_cls": search_class, "swrd": swrd, "master_no": "", "crg_no": "", "bpay_obj_acnt": "", "login_yn": "", "crg_type_sel_yn": "", "enr_no_sel_yn": "", "read_date": "", "read_no": "", "svc_cls": "", "bpay_cls": "", "pageIndex": "", "prev_yn": "", "calg_scrn": "", "eras_yn": "", "eras_conm": "", "eras_rom_conm": "", "re_srch_yn": "", "appl_tcnt": "", "dg_suit_yn": "", "dgcf_issue_cls_cd": "" }
     }
 
     try:
@@ -47,27 +66,27 @@ def search_iros_registration(registration_number: str):
         print(f"받은 응답 내용: {response.text}", file=sys.stderr)
         raise
 
+@app.route("/", methods=["GET", "POST"])
+def index():
+    """메인 페이지 및 검색 결과 처리"""
+    results = None
+    query = ""
+    if request.method == "POST":
+        query = request.form.get("query", "").strip()
+        if query:
+            try:
+                # 법인등록번호 형식(숫자6-숫자7) 및 총 14자리(하이픈 포함)인지 확인
+                if re.match(r"^\d{6}-\d{7}$", query) and len(query) == 14:
+                    search_by = "number"
+                else:
+                    search_by = "name"
+                search_result = search_iros(query, search_by)
+                results = search_result.get("data", {}).get("list", [])
+            except (requests.exceptions.RequestException, json.JSONDecodeError):
+                results = [] # 오류 발생 시 빈 리스트를 전달하여 템플릿에 메시지 표시
 
-def main():
-    """메인 실행 함수"""
-    # Windows 터미널(cmd, PowerShell)에서 유니코드 문자가 깨지는 현상을 방지합니다.
-    if sys.platform == "win32":
-        sys.stdout.reconfigure(encoding='utf-8')
-
-    parser = argparse.ArgumentParser(description="인터넷 등기소에서 법인 등록번호를 조회합니다.")
-    parser.add_argument("registration_number", help="조회할 법인 등기번호")
-    args = parser.parse_args()
-
-    print(f"등기번호 '{args.registration_number}' 조회를 시작합니다...")
-    
-    try:
-        result_data = search_iros_registration(args.registration_number)
-        print("\n✅ 요청 성공!")
-        print(json.dumps(result_data, indent=2, ensure_ascii=False))
-    except (requests.exceptions.RequestException, json.JSONDecodeError):
-        print("\n❌ 요청 실패.", file=sys.stderr)
-        sys.exit(1)
-
+    return render_template("index.html", results=results, query=query)
 
 if __name__ == "__main__":
-    main()
+    # 외부에서 접근 가능하도록 host='0.0.0.0'으로 설정합니다.
+    app.run(host="0.0.0.0", port=5000, debug=True)
